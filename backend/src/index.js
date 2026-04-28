@@ -30,6 +30,73 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 let prevNetStats = null;
 let prevNetTime = null;
 
+// THROTTLED bit meanings (vcgencmd get_throttled)
+const THROTTLED_BITS = {
+  underVoltageNow:    1 << 0,
+  freqCappedNow:      1 << 1,
+  throttledNow:       1 << 2,
+  softTempLimitNow:   1 << 3,
+  underVoltageOccurred:    1 << 16,
+  freqCappedOccurred:      1 << 17,
+  throttledOccurred:       1 << 18,
+  softTempLimitOccurred:   1 << 19,
+};
+
+async function getPowerInfo() {
+  const { execSync } = require('child_process');
+  const result = {
+    available: false,
+    throttledRaw: null,
+    flags: {},
+    rails: [],
+    summary: 'unknown',
+  };
+
+  // throttled status
+  try {
+    const out = execSync('vcgencmd get_throttled 2>/dev/null', { timeout: 800 }).toString();
+    const m = out.match(/throttled=0x([\da-fA-F]+)/);
+    if (m) {
+      const value = parseInt(m[1], 16);
+      result.available = true;
+      result.throttledRaw = '0x' + value.toString(16);
+      const flags = {};
+      for (const [k, bit] of Object.entries(THROTTLED_BITS)) {
+        flags[k] = (value & bit) !== 0;
+      }
+      result.flags = flags;
+      if (flags.underVoltageNow) result.summary = 'undervoltage';
+      else if (flags.throttledNow || flags.freqCappedNow || flags.softTempLimitNow) result.summary = 'throttling';
+      else if (flags.underVoltageOccurred || flags.throttledOccurred || flags.freqCappedOccurred || flags.softTempLimitOccurred) result.summary = 'past-event';
+      else result.summary = 'ok';
+    }
+  } catch (_) {}
+
+  // PMIC voltage rails (Pi 5 has these; Pi 4 may not)
+  try {
+    const out = execSync('vcgencmd pmic_read_adc 2>/dev/null', { timeout: 800 }).toString();
+    const volts = {};
+    const amps = {};
+    out.split('\n').forEach(line => {
+      let m = line.match(/^\s*(\S+?)_V\s+volt\(\d+\)=([\d.]+)V/);
+      if (m) volts[m[1]] = parseFloat(m[2]);
+      m = line.match(/^\s*(\S+?)_A\s+current\(\d+\)=([\d.]+)A/);
+      if (m) amps[m[1]] = parseFloat(m[2]);
+    });
+    const railNames = Object.keys(volts);
+    result.rails = railNames.map(name => ({
+      name,
+      volts: volts[name],
+      amps: amps[name] ?? null,
+      watts: amps[name] != null ? volts[name] * amps[name] : null,
+    }));
+    result.totalWatts = result.rails.reduce((s, r) => s + (r.watts || 0), 0);
+    result.available = true;
+  } catch (_) {}
+
+  return result;
+}
+
 async function getCpuTemperature() {
   // Try /sys/class/thermal first (most reliable on Pi)
   try {
@@ -81,6 +148,7 @@ async function collectMetrics() {
   ]);
 
   const temperature = await getCpuTemperature();
+  const power = await getPowerInfo();
 
   // Calculate network speeds (bytes/sec)
   let networkWithSpeeds = networkStats.map(iface => ({
@@ -186,6 +254,7 @@ async function collectMetrics() {
       };
     }),
     network: networkWithSpeeds.filter(n => n.iface && !n.iface.startsWith('lo')),
+    power,
     system: {
       uptime: require('os').uptime(),
       loadAvg: [loadavg[0], loadavg[1], loadavg[2]],

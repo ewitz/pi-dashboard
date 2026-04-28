@@ -59,6 +59,31 @@ export interface SystemInfo {
   processes: number;
 }
 
+export interface PowerRail {
+  name: string;
+  volts: number;
+  amps: number | null;
+  watts: number | null;
+}
+
+export interface PowerInfo {
+  available: boolean;
+  throttledRaw: string | null;
+  flags: {
+    underVoltageNow?: boolean;
+    freqCappedNow?: boolean;
+    throttledNow?: boolean;
+    softTempLimitNow?: boolean;
+    underVoltageOccurred?: boolean;
+    freqCappedOccurred?: boolean;
+    throttledOccurred?: boolean;
+    softTempLimitOccurred?: boolean;
+  };
+  rails: PowerRail[];
+  totalWatts?: number;
+  summary: 'ok' | 'undervoltage' | 'throttling' | 'past-event' | 'unknown';
+}
+
 export interface SystemMetrics {
   timestamp: number;
   cpu: CpuMetrics;
@@ -66,6 +91,7 @@ export interface SystemMetrics {
   disk: DiskMetric[];
   drives?: DriveInfo[];
   network: NetworkInterface[];
+  power?: PowerInfo;
   system: SystemInfo;
 }
 
