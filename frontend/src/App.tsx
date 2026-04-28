@@ -5,6 +5,7 @@ import { CpuCard } from './components/CpuCard';
 import { TempCard } from './components/TempCard';
 import { RamCard } from './components/RamCard';
 import { DiskCard } from './components/DiskCard';
+import { DrivesCard } from './components/DrivesCard';
 import { NetworkCard } from './components/NetworkCard';
 import { SystemCard } from './components/SystemCard';
 
@@ -76,6 +77,7 @@ export default function App() {
             )}
 
             <DiskCard disks={latest.disk} />
+            <DrivesCard drives={latest.drives ?? []} />
 
             <SystemCard system={latest.system} />
           </div>

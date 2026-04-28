@@ -1,0 +1,28 @@
+[Unit]
+Description=Pi Dashboard - Real-time Raspberry Pi monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ewitz
+Group=ewitz
+WorkingDirectory=/home/ewitz/projects/pi-dashboard
+Environment=NODE_ENV=production
+Environment=PORT=3001
+ExecStart=/usr/bin/node backend/src/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pi-dashboard
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/ewitz/projects/pi-dashboard
+
+[Install]
+WantedBy=multi-user.target

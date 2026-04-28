@@ -63,6 +63,8 @@ async function collectMetrics() {
     cpuCurrentSpeed,
     mem,
     fsSize,
+    blockDevices,
+    diskLayout,
     networkStats,
     osInfo,
     processes,
@@ -71,6 +73,8 @@ async function collectMetrics() {
     si.cpuCurrentSpeed(),
     si.mem(),
     si.fsSize(),
+    si.blockDevices(),
+    si.diskLayout(),
     si.networkStats(),
     si.osInfo(),
     si.processes(),
@@ -146,6 +150,41 @@ async function collectMetrics() {
       available: f.available,
       percent: f.use ?? 0,
     })),
+    drives: (diskLayout || []).filter(d => {
+      const dev = (d.device || '');
+      // Drop kernel ramdisks/loop/zram clutter
+      return !/\/(ram|loop|zram)\d+/.test(dev) && (d.size || 0) > 0;
+    }).map(d => {
+      // Match block-device children to find partitions/mounts for this physical disk
+      const devName = (d.device || '').replace(/^\/dev\//, '');
+      const parts = (blockDevices || []).filter(b =>
+        b.name && b.name.startsWith(devName) && b.name !== devName
+      );
+      const mounts = parts
+        .map(p => p.mount)
+        .filter(Boolean);
+      // Aggregate used/size from any mounted filesystems on this physical disk
+      const matchedFs = (usefulFs || []).filter(f =>
+        parts.some(p => f.fs && (f.fs === '/dev/' + p.name || f.fs.endsWith('/' + p.name)))
+      );
+      const usedBytes = matchedFs.reduce((s, f) => s + (f.used || 0), 0);
+      return {
+        device: d.device,
+        name: d.name || '',
+        vendor: d.vendor || '',
+        type: d.type || '',
+        interfaceType: d.interfaceType || '',
+        size: d.size || 0,
+        serial: d.serialNum || '',
+        temperature: d.temperature ?? null,
+        smartStatus: d.smartStatus || 'unknown',
+        partitions: parts.length,
+        mounts,
+        mounted: mounts.length > 0,
+        usedBytes,
+        usedPercent: d.size > 0 ? (usedBytes / d.size) * 100 : 0,
+      };
+    }),
     network: networkWithSpeeds.filter(n => n.iface && !n.iface.startsWith('lo')),
     system: {
       uptime: require('os').uptime(),

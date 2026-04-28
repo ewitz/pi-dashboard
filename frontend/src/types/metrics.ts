@@ -25,6 +25,23 @@ export interface DiskMetric {
   percent: number;
 }
 
+export interface DriveInfo {
+  device: string;
+  name: string;
+  vendor: string;
+  type: string;
+  interfaceType: string;
+  size: number;
+  serial: string;
+  temperature: number | null;
+  smartStatus: string;
+  partitions: number;
+  mounts: string[];
+  mounted: boolean;
+  usedBytes: number;
+  usedPercent: number;
+}
+
 export interface NetworkInterface {
   iface: string;
   rx: number;
@@ -47,6 +64,7 @@ export interface SystemMetrics {
   cpu: CpuMetrics;
   memory: MemoryMetrics;
   disk: DiskMetric[];
+  drives?: DriveInfo[];
   network: NetworkInterface[];
   system: SystemInfo;
 }
